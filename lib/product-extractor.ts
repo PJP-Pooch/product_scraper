@@ -70,10 +70,35 @@ function parseOffers(raw: unknown): Offer[] {
 
 export function detectSpecies(text: string): 'dog' | 'cat' | 'unknown' {
   const lower = text.toLowerCase();
-  const dog = /\b(dog|dogs|canine|puppy|puppies|hound)\b/.test(lower);
-  const cat = /\b(cat|cats|feline|kitten|kittens)\b/.test(lower);
-  if (dog && !cat) return 'dog';
-  if (cat && !dog) return 'cat';
+  
+  // Count matches
+  const dogWords = ['dog', 'dogs', 'canine', 'puppy', 'puppies', 'hound', 'pooch', 'pooches'];
+  const catWords = ['cat', 'cats', 'feline', 'kitten', 'kittens'];
+  
+  let dogCount = 0;
+  let catCount = 0;
+  
+  for (const w of dogWords) {
+    const re = new RegExp('\\b' + w + '\\b', 'g');
+    const matches = lower.match(re);
+    if (matches) dogCount += matches.length;
+  }
+  
+  for (const w of catWords) {
+    const re = new RegExp('\\b' + w + '\\b', 'g');
+    const matches = lower.match(re);
+    if (matches) catCount += matches.length;
+  }
+  
+  if (dogCount > 0 && catCount === 0) return 'dog';
+  if (catCount > 0 && dogCount === 0) return 'cat';
+  
+  if (dogCount > 0 && catCount > 0) {
+    // If one species is significantly more frequent than the other (at least 2x)
+    if (dogCount >= 2 * catCount) return 'dog';
+    if (catCount >= 2 * dogCount) return 'cat';
+  }
+  
   return 'unknown';
 }
 
@@ -84,13 +109,13 @@ export function detectFoodType(text: string): 'dry food' | 'wet food' | 'mixed' 
   const treats = /\b(treats?|snacks?|chews?|sticks?|dental|training|rewards?|toppers?|jerky|bones?|rawhide|bakes?)\b/.test(lower);
   if (treats) return 'treats';
 
-  const supplements = /\b(supplements?|vitamins?|probiotics?|joint-support|health-booster|omega)\b/.test(lower);
+  const supplements = /\b(supplements?|vitamins?|oil?|probiotics?|joint-support|health-booster|omega)\b/.test(lower);
   if (supplements) return 'supplements';
 
   // 2. Primary check
   const dryPrimary = /\b(dry([\s-]+(dog|cat))?[\s-]+food|kibbles?|biscuits?|dried[\s-]+food|crunch(y)?|pellets?|complete[\s-]+dry)\b/.test(lower);
   const wetPrimary = /\b(wet([\s-]+(dog|cat))?[\s-]+food|pou?ches?|cans?\b|canned|tins?\b|tinned|jelly|gravy|mousse|p[aâ]t[eé]|terrine|loaf|broth|stew|soup|in[\s-]+jelly|in[\s-]+gravy)\b/.test(lower);
-  
+
   let type: 'dry food' | 'wet food' | 'mixed' | 'treats' | 'supplements' | 'unknown' = 'unknown';
   if (dryPrimary && wetPrimary) type = 'mixed';
   else if (dryPrimary) type = 'dry food';
