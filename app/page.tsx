@@ -16,10 +16,24 @@ function fmt(n: number | null, c: string | null) {
 
 // ─── Stats ────────────────────────────────────────────────────────────────────
 
-type GroupKey = 'all' | 'dog' | 'cat' | 'dry food' | 'wet food';
+type GroupKey = 'all' | 'dog' | 'cat' | 'dry food' | 'wet food' | 'treats' | 'supplements';
 
 function avg(ns: number[]) {
   return ns.length ? ns.reduce((a, b) => a + b, 0) / ns.length : null;
+}
+
+function computeGroupStats(groupProducts: ProductData[]) {
+  const nn = <T,>(arr: (T | null)[]): T[] => arr.filter((x): x is T => x !== null);
+  const c = groupProducts.find((p) => p.currency)?.currency ?? null;
+  return {
+    count: groupProducts.length,
+    avgPrice: avg(nn(groupProducts.map((p) => p.price))),
+    avgSubPrice: avg(nn(groupProducts.map((p) => p.subscription_price))),
+    avgPpkg: avg(nn(groupProducts.map((p) => p.price_per_kg))),
+    avgDiscount: avg(nn(groupProducts.map((p) => p.subscription_discount))),
+    inStock: groupProducts.filter((p) => p.in_stock === true).length,
+    currency: c,
+  };
 }
 
 function computeStats(products: ProductData[], filter: GroupKey) {
@@ -30,21 +44,23 @@ function computeStats(products: ProductData[], filter: GroupKey) {
       ? products.filter((p) => p.species === filter)
       : products.filter((p) => p.food_type === filter);
 
-  const nn = <T,>(arr: (T | null)[]): T[] => arr.filter((x): x is T => x !== null);
-  const c = s.find((p) => p.currency)?.currency ?? null;
+  const mainStats = computeGroupStats(s);
 
   return {
-    count: s.length,
-    avgPrice: avg(nn(s.map((p) => p.price))),
-    avgSubPrice: avg(nn(s.map((p) => p.subscription_price))),
-    avgPpkg: avg(nn(s.map((p) => p.price_per_kg))),
-    avgDiscount: avg(nn(s.map((p) => p.subscription_discount))),
-    inStock: s.filter((p) => p.in_stock === true).length,
-    currency: c,
+    ...mainStats,
     dogs: s.filter((p) => p.species === 'dog').length,
     cats: s.filter((p) => p.species === 'cat').length,
     dry: s.filter((p) => p.food_type === 'dry food').length,
     wet: s.filter((p) => p.food_type === 'wet food').length,
+    treats: s.filter((p) => p.food_type === 'treats').length,
+    supplements: s.filter((p) => p.food_type === 'supplements').length,
+
+    dogStats: computeGroupStats(s.filter((p) => p.species === 'dog')),
+    catStats: computeGroupStats(s.filter((p) => p.species === 'cat')),
+    dryStats: computeGroupStats(s.filter((p) => p.food_type === 'dry food')),
+    wetStats: computeGroupStats(s.filter((p) => p.food_type === 'wet food')),
+    treatsStats: computeGroupStats(s.filter((p) => p.food_type === 'treats')),
+    supplementsStats: computeGroupStats(s.filter((p) => p.food_type === 'supplements')),
   };
 }
 
@@ -139,6 +155,8 @@ const GROUP_TABS: { key: GroupKey; label: string }[] = [
   { key: 'cat', label: 'Cat' },
   { key: 'dry food', label: 'Dry Food' },
   { key: 'wet food', label: 'Wet Food' },
+  { key: 'treats', label: 'Treats' },
+  { key: 'supplements', label: 'Supplements' },
 ];
 
 function StatCard({ label, value }: { label: string; value: string }) {
@@ -162,8 +180,73 @@ const STAT_LABELS: Record<StatKey, string> = {
   inStock: 'In Stock',
 };
 
-function StatsPanel({ products, visibleStats }: { products: ProductData[]; visibleStats: Set<StatKey> }) {
-  const [group, setGroup] = useState<GroupKey>('all');
+function SubgroupStatCard({
+  title,
+  stats,
+  color,
+}: {
+  title: string;
+  stats: ReturnType<typeof computeGroupStats>;
+  color: 'blue' | 'purple' | 'amber' | 'cyan' | 'orange' | 'emerald';
+}) {
+  const themes = {
+    blue: { bg: 'bg-blue-50', border: 'border-blue-100', text: 'text-blue-700', badge: 'bg-blue-100 text-blue-800' },
+    purple: { bg: 'bg-purple-50', border: 'border-purple-100', text: 'text-purple-700', badge: 'bg-purple-100 text-purple-800' },
+    amber: { bg: 'bg-amber-50', border: 'border-amber-100', text: 'text-amber-700', badge: 'bg-amber-100 text-amber-800' },
+    cyan: { bg: 'bg-cyan-50', border: 'border-cyan-100', text: 'text-cyan-700', badge: 'bg-cyan-100 text-cyan-800' },
+    orange: { bg: 'bg-orange-50', border: 'border-orange-100', text: 'text-orange-700', badge: 'bg-orange-100 text-orange-800' },
+    emerald: { bg: 'bg-emerald-50', border: 'border-emerald-100', text: 'text-emerald-700', badge: 'bg-emerald-100 text-emerald-800' },
+  };
+
+  const theme = themes[color];
+
+  return (
+    <div className={`${theme.bg} rounded-lg p-3 border ${theme.border} flex flex-col justify-between`}>
+      <div>
+        <div className="flex justify-between items-start mb-2">
+          <span className="text-xs font-semibold text-gray-800">{title}</span>
+          <span className={`${theme.badge} text-[10px] px-1.5 py-0.5 rounded-full font-medium`}>
+            {stats.count}
+          </span>
+        </div>
+        {stats.count > 0 ? (
+          <div className="space-y-1 text-left">
+            <div className="flex justify-between text-[11px]">
+              <span className="text-gray-500">Avg Price:</span>
+              <span className="font-semibold text-gray-900">{fmt(stats.avgPrice, stats.currency)}</span>
+            </div>
+            <div className="flex justify-between text-[11px]">
+              <span className="text-gray-500">Avg Price/kg:</span>
+              <span className="font-semibold text-gray-900">
+                {stats.avgPpkg !== null ? `${fmt(stats.avgPpkg, stats.currency)}/kg` : '—'}
+              </span>
+            </div>
+            <div className="flex justify-between text-[11px]">
+              <span className="text-gray-500">In Stock:</span>
+              <span className="font-semibold text-gray-900">
+                {stats.inStock} / {stats.count}
+              </span>
+            </div>
+          </div>
+        ) : (
+          <p className="text-[11px] text-gray-400 text-center italic py-2">No products</p>
+        )}
+      </div>
+    </div>
+  );
+}
+
+function StatsPanel({
+  products,
+  visibleStats,
+  group,
+  setGroup,
+}: {
+  products: ProductData[];
+  visibleStats: Set<StatKey>;
+  group: GroupKey;
+  setGroup: (g: GroupKey) => void;
+}) {
   const s = computeStats(products, group);
 
   return (
@@ -204,24 +287,23 @@ function StatsPanel({ products, visibleStats }: { products: ProductData[]; visib
         )}
       </div>
 
-      {group === 'all' && s.count > 0 && (
-        <div className="mt-4 grid grid-cols-4 gap-3">
-          <div className="bg-blue-50 rounded-lg p-3 text-center">
-            <p className="text-2xl font-bold text-blue-700 tabular-nums">{s.dogs}</p>
-            <p className="text-xs text-blue-600 mt-0.5">Dog products</p>
-          </div>
-          <div className="bg-purple-50 rounded-lg p-3 text-center">
-            <p className="text-2xl font-bold text-purple-700 tabular-nums">{s.cats}</p>
-            <p className="text-xs text-purple-600 mt-0.5">Cat products</p>
-          </div>
-          <div className="bg-amber-50 rounded-lg p-3 text-center">
-            <p className="text-2xl font-bold text-amber-700 tabular-nums">{s.dry}</p>
-            <p className="text-xs text-amber-600 mt-0.5">Dry food</p>
-          </div>
-          <div className="bg-cyan-50 rounded-lg p-3 text-center">
-            <p className="text-2xl font-bold text-cyan-700 tabular-nums">{s.wet}</p>
-            <p className="text-xs text-cyan-600 mt-0.5">Wet food</p>
-          </div>
+      {s.count > 0 && (
+        <div className="mt-4 grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-6 gap-3">
+          {(group === 'all' || group === 'dry food' || group === 'wet food' || group === 'treats' || group === 'supplements') && (
+            <>
+              <SubgroupStatCard title="Dog products" stats={s.dogStats} color="blue" />
+              <SubgroupStatCard title="Cat products" stats={s.catStats} color="purple" />
+            </>
+          )}
+
+          {(group === 'all' || group === 'dog' || group === 'cat') && (
+            <>
+              <SubgroupStatCard title="Dry food" stats={s.dryStats} color="amber" />
+              <SubgroupStatCard title="Wet food" stats={s.wetStats} color="cyan" />
+              <SubgroupStatCard title="Treats" stats={s.treatsStats} color="orange" />
+              <SubgroupStatCard title="Supplements" stats={s.supplementsStats} color="emerald" />
+            </>
+          )}
         </div>
       )}
     </div>
@@ -384,6 +466,7 @@ export default function Home() {
   const [filterSpecies, setFilterSpecies] = useState<'all' | 'dog' | 'cat' | 'unknown'>('all');
   const [filterFoodType, setFilterFoodType] = useState<'all' | 'dry food' | 'wet food' | 'mixed' | 'treats' | 'supplements' | 'unknown'>('all');
   const [showLowConfidence, setShowLowConfidence] = useState(false);
+  const [activeTab, setActiveTab] = useState<GroupKey>('all');
 
   const [urlsText, setUrlsText] = useState('');
 
@@ -723,7 +806,26 @@ export default function Home() {
         )}
 
         {/* ── Stats ────────────────────────────────────────────────────────── */}
-        {results.length > 0 && <StatsPanel products={results} visibleStats={visibleStats} />}
+        {results.length > 0 && (
+          <StatsPanel
+            products={results}
+            visibleStats={visibleStats}
+            group={activeTab}
+            setGroup={(tab) => {
+              setActiveTab(tab);
+              if (tab === 'all') {
+                setFilterSpecies('all');
+                setFilterFoodType('all');
+              } else if (tab === 'dog' || tab === 'cat') {
+                setFilterSpecies(tab);
+                setFilterFoodType('all');
+              } else {
+                setFilterSpecies('all');
+                setFilterFoodType(tab as any);
+              }
+            }}
+          />
+        )}
 
         {/* ── Results table ────────────────────────────────────────────────── */}
         {results.length > 0 && (
@@ -742,7 +844,23 @@ export default function Home() {
                     <span className="text-xs text-gray-400">Species:</span>
                     <select
                       value={filterSpecies}
-                      onChange={(e) => setFilterSpecies(e.target.value as any)}
+                      onChange={(e) => {
+                        const val = e.target.value as any;
+                        setFilterSpecies(val);
+                        if (val === 'all' && filterFoodType === 'all') {
+                          setActiveTab('all');
+                        } else if (val === 'dog' && filterFoodType === 'all') {
+                          setActiveTab('dog');
+                        } else if (val === 'cat' && filterFoodType === 'all') {
+                          setActiveTab('cat');
+                        } else if (filterFoodType !== 'all' && val === 'all') {
+                          if (['dry food', 'wet food', 'treats', 'supplements'].includes(filterFoodType)) {
+                            setActiveTab(filterFoodType as GroupKey);
+                          }
+                        } else {
+                          setActiveTab('all');
+                        }
+                      }}
                       className="px-2 py-1 text-xs border border-gray-300 rounded-md focus:outline-none focus:ring-1 focus:ring-blue-500 bg-white text-gray-700 font-medium"
                     >
                       <option value="all">All</option>
@@ -756,7 +874,21 @@ export default function Home() {
                     <span className="text-xs text-gray-400">Food Type:</span>
                     <select
                       value={filterFoodType}
-                      onChange={(e) => setFilterFoodType(e.target.value as any)}
+                      onChange={(e) => {
+                        const val = e.target.value as any;
+                        setFilterFoodType(val);
+                        if (filterSpecies === 'all' && val === 'all') {
+                          setActiveTab('all');
+                        } else if (filterSpecies === 'dog' && val === 'all') {
+                          setActiveTab('dog');
+                        } else if (filterSpecies === 'cat' && val === 'all') {
+                          setActiveTab('cat');
+                        } else if (filterSpecies === 'all' && ['dry food', 'wet food', 'treats', 'supplements'].includes(val)) {
+                          setActiveTab(val as GroupKey);
+                        } else {
+                          setActiveTab('all');
+                        }
+                      }}
                       className="px-2 py-1 text-xs border border-gray-300 rounded-md focus:outline-none focus:ring-1 focus:ring-blue-500 bg-white text-gray-700 font-medium"
                     >
                       <option value="all">All</option>

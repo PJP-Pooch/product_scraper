@@ -106,14 +106,14 @@ export function detectFoodType(text: string): 'dry food' | 'wet food' | 'mixed' 
   const lower = text.toLowerCase();
 
   // 1. Treats & supplements checks first
-  const treats = /\b(treats?|snacks?|chews?|sticks?|dental|training|rewards?|toppers?|jerky|bones?|rawhide|bakes?)\b/.test(lower);
+  const treats = /\b(treats?|snacks?|chews?|sticks?|dental|training|rewards?|toppers?|jerky|bones?|rawhide|bakes?|biscuits?)\b/.test(lower);
   if (treats) return 'treats';
 
   const supplements = /\b(supplements?|vitamins?|oil?|probiotics?|joint-support|health-booster|omega)\b/.test(lower);
   if (supplements) return 'supplements';
 
   // 2. Primary check
-  const dryPrimary = /\b(dry([\s-]+(dog|cat))?[\s-]+food|kibbles?|biscuits?|dried[\s-]+food|crunch(y)?|pellets?|complete[\s-]+dry)\b/.test(lower);
+  const dryPrimary = /\b(dry([\s-]+(dog|cat))?[\s-]+food|kibbles?|dried[\s-]+food|crunch(y)?|pellets?|complete[\s-]+dry)\b/.test(lower);
   const wetPrimary = /\b(wet([\s-]+(dog|cat))?[\s-]+food|pou?ches?|cans?\b|canned|tins?\b|tinned|jelly|gravy|mousse|p[aâ]t[eé]|terrine|loaf|broth|stew|soup|in[\s-]+jelly|in[\s-]+gravy)\b/.test(lower);
 
   let type: 'dry food' | 'wet food' | 'mixed' | 'treats' | 'supplements' | 'unknown' = 'unknown';
