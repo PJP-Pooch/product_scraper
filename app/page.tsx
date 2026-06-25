@@ -383,6 +383,7 @@ export default function Home() {
 
   const [filterSpecies, setFilterSpecies] = useState<'all' | 'dog' | 'cat' | 'unknown'>('all');
   const [filterFoodType, setFilterFoodType] = useState<'all' | 'dry food' | 'wet food' | 'mixed' | 'treats' | 'supplements' | 'unknown'>('all');
+  const [showLowConfidence, setShowLowConfidence] = useState(false);
 
   const [urlsText, setUrlsText] = useState('');
 
@@ -533,7 +534,15 @@ export default function Home() {
   const filteredProducts = results.filter((p) => {
     const speciesMatch = filterSpecies === 'all' || p.species === filterSpecies;
     const foodTypeMatch = filterFoodType === 'all' || p.food_type === filterFoodType;
-    return speciesMatch && foodTypeMatch;
+
+    let confidenceMatch = true;
+    if (showLowConfidence) {
+      const speciesConf = p.species_confidence ?? 0;
+      const foodConf = p.food_type_confidence ?? 0;
+      confidenceMatch = speciesConf < 50 || foodConf < 50;
+    }
+
+    return speciesMatch && foodTypeMatch && confidenceMatch;
   });
 
   const parsedUrls = urlsText
@@ -743,7 +752,7 @@ export default function Home() {
                     </select>
                   </div>
 
-                  <div className="flex items-center gap-1.5">
+                   <div className="flex items-center gap-1.5">
                     <span className="text-xs text-gray-400">Food Type:</span>
                     <select
                       value={filterFoodType}
@@ -758,6 +767,18 @@ export default function Home() {
                       <option value="supplements">Supplements</option>
                       <option value="unknown">Unknown</option>
                     </select>
+                  </div>
+
+                  <div className="flex items-center gap-1.5 ml-2 border-l border-gray-200 pl-3">
+                    <label className="inline-flex items-center gap-1.5 text-xs text-gray-600 cursor-pointer select-none">
+                      <input
+                        type="checkbox"
+                        checked={showLowConfidence}
+                        onChange={(e) => setShowLowConfidence(e.target.checked)}
+                        className="rounded border-gray-300 text-blue-600 focus:ring-blue-500 h-3.5 w-3.5"
+                      />
+                      <span>Low Confidence (&lt;50%)</span>
+                    </label>
                   </div>
                 </div>
               </div>
