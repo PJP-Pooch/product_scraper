@@ -53,13 +53,38 @@ function computeStats(products: ProductData[], filter: GroupKey) {
 function Badge({ label, cls }: { label: string; cls: string }) {
   return <span className={`inline-block text-xs font-medium px-1.5 py-0.5 rounded ${cls}`}>{label}</span>;
 }
-function SpeciesBadge({ v }: { v: ProductData['species'] }) {
+function SpeciesBadge({ v, conf }: { v: ProductData['species']; conf?: number | null }) {
   const m = { dog: 'bg-blue-100 text-blue-700', cat: 'bg-purple-100 text-purple-700', unknown: 'bg-gray-100 text-gray-500' };
-  return <Badge label={v} cls={m[v]} />;
+  return (
+    <div className="inline-flex items-center gap-1">
+      <Badge label={v} cls={m[v]} />
+      {conf != null && conf > 0 && (
+        <span className="text-[10px] text-gray-400 font-mono" title={`Confidence: ${conf}%`}>
+          ({conf}%)
+        </span>
+      )}
+    </div>
+  );
 }
-function FoodBadge({ v }: { v: ProductData['food_type'] }) {
-  const m: Record<string, string> = { 'dry food': 'bg-amber-100 text-amber-700', 'wet food': 'bg-cyan-100 text-cyan-700', mixed: 'bg-violet-100 text-violet-700', unknown: 'bg-gray-100 text-gray-500' };
-  return <Badge label={v} cls={m[v] ?? 'bg-gray-100 text-gray-500'} />;
+function FoodBadge({ v, conf }: { v: ProductData['food_type']; conf?: number | null }) {
+  const m: Record<string, string> = {
+    'dry food': 'bg-amber-100 text-amber-700',
+    'wet food': 'bg-cyan-100 text-cyan-700',
+    mixed: 'bg-violet-100 text-violet-700',
+    treats: 'bg-orange-100 text-orange-700',
+    supplements: 'bg-emerald-100 text-emerald-700',
+    unknown: 'bg-gray-100 text-gray-500'
+  };
+  return (
+    <div className="inline-flex items-center gap-1">
+      <Badge label={v} cls={m[v] ?? 'bg-gray-100 text-gray-500'} />
+      {conf != null && conf > 0 && (
+        <span className="text-[10px] text-gray-400 font-mono" title={`Confidence: ${conf}%`}>
+          ({conf}%)
+        </span>
+      )}
+    </div>
+  );
 }
 function StockBadge({ v }: { v: boolean | null }) {
   if (v === null) return <span className="text-gray-400 text-xs">—</span>;
@@ -266,10 +291,14 @@ function ResultsTable({ products, visibleCols }: { products: ProductData[]; visi
                 <td className="px-3 py-2 text-gray-600 whitespace-nowrap">{p.brand ?? '—'}</td>
               )}
               {visibleCols.has('species') && (
-                <td className="px-3 py-2 whitespace-nowrap"><SpeciesBadge v={p.species} /></td>
+                <td className="px-3 py-2 whitespace-nowrap">
+                  <SpeciesBadge v={p.species} conf={p.species_confidence} />
+                </td>
               )}
               {visibleCols.has('food_type') && (
-                <td className="px-3 py-2 whitespace-nowrap"><FoodBadge v={p.food_type} /></td>
+                <td className="px-3 py-2 whitespace-nowrap">
+                  <FoodBadge v={p.food_type} conf={p.food_type_confidence} />
+                </td>
               )}
               {visibleCols.has('pack_size') && (
                 <td className="px-3 py-2 text-gray-600 whitespace-nowrap">{p.pack_size ?? '—'}</td>
@@ -353,7 +382,7 @@ export default function Home() {
   const cancelRef = useRef(false);
 
   const [filterSpecies, setFilterSpecies] = useState<'all' | 'dog' | 'cat' | 'unknown'>('all');
-  const [filterFoodType, setFilterFoodType] = useState<'all' | 'dry food' | 'wet food' | 'mixed' | 'unknown'>('all');
+  const [filterFoodType, setFilterFoodType] = useState<'all' | 'dry food' | 'wet food' | 'mixed' | 'treats' | 'supplements' | 'unknown'>('all');
 
   const [urlsText, setUrlsText] = useState('');
 
@@ -725,6 +754,8 @@ export default function Home() {
                       <option value="dry food">Dry Food</option>
                       <option value="wet food">Wet Food</option>
                       <option value="mixed">Mixed</option>
+                      <option value="treats">Treats</option>
+                      <option value="supplements">Supplements</option>
                       <option value="unknown">Unknown</option>
                     </select>
                   </div>

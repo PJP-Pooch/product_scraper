@@ -4,7 +4,9 @@ export interface ProductData {
   product_name: string | null;
   brand: string | null;
   species: 'dog' | 'cat' | 'unknown';
-  food_type: 'dry food' | 'wet food' | 'mixed' | 'unknown';
+  food_type: 'dry food' | 'wet food' | 'mixed' | 'treats' | 'supplements' | 'unknown';
+  species_confidence?: number | null;
+  food_type_confidence?: number | null;
   price: number | null;
   subscription_price: number | null;
   subscription_discount: number | null;

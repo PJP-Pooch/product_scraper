@@ -77,14 +77,35 @@ export function detectSpecies(text: string): 'dog' | 'cat' | 'unknown' {
   return 'unknown';
 }
 
-export function detectFoodType(text: string): 'dry food' | 'wet food' | 'mixed' | 'unknown' {
+export function detectFoodType(text: string): 'dry food' | 'wet food' | 'mixed' | 'treats' | 'supplements' | 'unknown' {
   const lower = text.toLowerCase();
-  const dry = /\b(dry([\s-]+(dog|cat))?[\s-]+food|kibbles?|biscuits?|dried[\s-]+food|crunch(y)?|pellets?|complete[\s-]+dry)\b/.test(lower);
-  const wet = /\b(wet([\s-]+(dog|cat))?[\s-]+food|pou?ches?|cans?\b|canned|tins?\b|tinned|jelly|gravy|mousse|p[aâ]t[eé]|terrine|loaf|broth|stew|soup|in[\s-]+jelly|in[\s-]+gravy)\b/.test(lower);
-  if (dry && wet) return 'mixed';
-  if (dry) return 'dry food';
-  if (wet) return 'wet food';
-  return 'unknown';
+
+  // 1. Treats & supplements checks first
+  const treats = /\b(treats?|snacks?|chews?|sticks?|dental|training|rewards?|toppers?|jerky|bones?|rawhide|bakes?)\b/.test(lower);
+  if (treats) return 'treats';
+
+  const supplements = /\b(supplements?|vitamins?|probiotics?|joint-support|health-booster|omega)\b/.test(lower);
+  if (supplements) return 'supplements';
+
+  // 2. Primary check
+  const dryPrimary = /\b(dry([\s-]+(dog|cat))?[\s-]+food|kibbles?|biscuits?|dried[\s-]+food|crunch(y)?|pellets?|complete[\s-]+dry)\b/.test(lower);
+  const wetPrimary = /\b(wet([\s-]+(dog|cat))?[\s-]+food|pou?ches?|cans?\b|canned|tins?\b|tinned|jelly|gravy|mousse|p[aâ]t[eé]|terrine|loaf|broth|stew|soup|in[\s-]+jelly|in[\s-]+gravy)\b/.test(lower);
+  
+  let type: 'dry food' | 'wet food' | 'mixed' | 'treats' | 'supplements' | 'unknown' = 'unknown';
+  if (dryPrimary && wetPrimary) type = 'mixed';
+  else if (dryPrimary) type = 'dry food';
+  else if (wetPrimary) type = 'wet food';
+
+  // 3. Secondary check if unknown
+  if (type === 'unknown') {
+    const drySecondary = /\b(cold[\s-]+pressed|kibbles?|dry)\b/.test(lower);
+    const wetSecondary = /\b(wet|trays?|casserole)\b/.test(lower);
+    if (drySecondary && wetSecondary) type = 'mixed';
+    else if (drySecondary) type = 'dry food';
+    else if (wetSecondary) type = 'wet food';
+  }
+
+  return type;
 }
 
 export function classifySpecies(
@@ -93,28 +114,28 @@ export function classifySpecies(
   jsonLdDesc: string | null,
   metaDesc: string | null,
   markdown: string
-): 'dog' | 'cat' | 'unknown' {
+): { value: 'dog' | 'cat' | 'unknown'; confidence: number } {
   if (productName) {
     const s = detectSpecies(productName);
-    if (s !== 'unknown') return s;
+    if (s !== 'unknown') return { value: s, confidence: 100 };
   }
   if (url) {
     const s = detectSpecies(url);
-    if (s !== 'unknown') return s;
+    if (s !== 'unknown') return { value: s, confidence: 80 };
   }
   if (jsonLdDesc) {
     const s = detectSpecies(jsonLdDesc);
-    if (s !== 'unknown') return s;
+    if (s !== 'unknown') return { value: s, confidence: 60 };
   }
   if (metaDesc) {
     const s = detectSpecies(metaDesc);
-    if (s !== 'unknown') return s;
+    if (s !== 'unknown') return { value: s, confidence: 40 };
   }
   if (markdown) {
     const s = detectSpecies(markdown.slice(0, 3000));
-    if (s !== 'unknown') return s;
+    if (s !== 'unknown') return { value: s, confidence: 20 };
   }
-  return 'unknown';
+  return { value: 'unknown', confidence: 0 };
 }
 
 export function classifyFoodType(
@@ -123,28 +144,28 @@ export function classifyFoodType(
   jsonLdDesc: string | null,
   metaDesc: string | null,
   markdown: string
-): 'dry food' | 'wet food' | 'mixed' | 'unknown' {
+): { value: 'dry food' | 'wet food' | 'mixed' | 'treats' | 'supplements' | 'unknown'; confidence: number } {
   if (productName) {
     const f = detectFoodType(productName);
-    if (f !== 'unknown') return f;
+    if (f !== 'unknown') return { value: f, confidence: 100 };
   }
   if (url) {
     const f = detectFoodType(url);
-    if (f !== 'unknown') return f;
+    if (f !== 'unknown') return { value: f, confidence: 80 };
   }
   if (jsonLdDesc) {
     const f = detectFoodType(jsonLdDesc);
-    if (f !== 'unknown') return f;
+    if (f !== 'unknown') return { value: f, confidence: 60 };
   }
   if (metaDesc) {
     const f = detectFoodType(metaDesc);
-    if (f !== 'unknown') return f;
+    if (f !== 'unknown') return { value: f, confidence: 40 };
   }
   if (markdown) {
     const f = detectFoodType(markdown.slice(0, 3000));
-    if (f !== 'unknown') return f;
+    if (f !== 'unknown') return { value: f, confidence: 20 };
   }
-  return 'unknown';
+  return { value: 'unknown', confidence: 0 };
 }
 
 // ─── Price helpers ────────────────────────────────────────────────────────────
@@ -237,14 +258,14 @@ export function extractProducts(
     (meta.ogSiteName as string) ||
     null;
 
-  const species = classifySpecies(
+  const speciesRes = classifySpecies(
     productName,
     url,
     (product?.description as string) || null,
     (meta.description as string) || null,
     markdown
   );
-  const foodType = classifyFoodType(
+  const foodTypeRes = classifyFoodType(
     productName,
     url,
     (product?.description as string) || null,
@@ -304,8 +325,10 @@ export function extractProducts(
       product_url: url,
       product_name: rowName,
       brand,
-      species,
-      food_type: foodType,
+      species: speciesRes.value,
+      species_confidence: speciesRes.confidence,
+      food_type: foodTypeRes.value,
+      food_type_confidence: foodTypeRes.confidence,
       price: finalPrice,
       subscription_price: sub.subscription_price,
       subscription_discount: sub.subscription_discount,
