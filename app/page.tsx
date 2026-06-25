@@ -73,6 +73,15 @@ function StatusPill({ s }: { s: ScrapeStatus }) {
 
 // ─── Toggle chip ──────────────────────────────────────────────────────────────
 
+const COLOR_CLASSES: Record<string, string> = {
+  amber: 'bg-amber-600 text-white border-amber-600',
+  cyan: 'bg-cyan-600 text-white border-cyan-600',
+  orange: 'bg-orange-600 text-white border-orange-600',
+  green: 'bg-green-600 text-white border-green-600',
+  blue: 'bg-blue-600 text-white border-blue-600',
+  slate: 'bg-slate-600 text-white border-slate-600',
+};
+
 function ToggleChip({
   label,
   checked,
@@ -84,7 +93,7 @@ function ToggleChip({
   onChange: (v: boolean) => void;
   color?: string;
 }) {
-  const on = `bg-${color}-600 text-white border-${color}-600`;
+  const on = COLOR_CLASSES[color] ?? 'bg-blue-600 text-white border-blue-600';
   const off = 'bg-white text-gray-600 border-gray-300 hover:border-gray-400';
   return (
     <button
@@ -343,6 +352,11 @@ export default function Home() {
   const [showErrors, setShowErrors] = useState(false);
   const cancelRef = useRef(false);
 
+  const [filterSpecies, setFilterSpecies] = useState<'all' | 'dog' | 'cat' | 'unknown'>('all');
+  const [filterFoodType, setFilterFoodType] = useState<'all' | 'dry food' | 'wet food' | 'mixed' | 'unknown'>('all');
+
+  const [urlsText, setUrlsText] = useState('');
+
   useEffect(() => {
     const stored = localStorage.getItem('fc-api-key');
     if (stored) setApiKey(stored);
@@ -355,6 +369,10 @@ export default function Home() {
       setCompetitor((prev) => prev || h.split('.')[0]);
     } catch {}
   }, [sitemapUrl]);
+
+  useEffect(() => {
+    setUrlsText(filteredUrls.join('\n'));
+  }, [filteredUrls]);
 
   const saveApiKey = (v: string) => {
     setApiKey(v);
@@ -467,8 +485,8 @@ export default function Home() {
   };
 
   const exportCSV = () => {
-    if (!results.length) return;
-    const blob = new Blob([Papa.unparse(results)], { type: 'text/csv;charset=utf-8;' });
+    if (!filteredProducts.length) return;
+    const blob = new Blob([Papa.unparse(filteredProducts)], { type: 'text/csv;charset=utf-8;' });
     const url = URL.createObjectURL(blob);
     const a = Object.assign(document.createElement('a'), {
       href: url,
@@ -482,6 +500,17 @@ export default function Home() {
 
   const isRunning = status === 'parsing' || status === 'scraping';
   const pct = progress.total > 0 ? Math.round((progress.current / progress.total) * 100) : 0;
+
+  const filteredProducts = results.filter((p) => {
+    const speciesMatch = filterSpecies === 'all' || p.species === filterSpecies;
+    const foodTypeMatch = filterFoodType === 'all' || p.food_type === filterFoodType;
+    return speciesMatch && foodTypeMatch;
+  });
+
+  const parsedUrls = urlsText
+    .split('\n')
+    .map((u) => u.trim())
+    .filter(Boolean);
 
   return (
     <div className="min-h-screen bg-gray-50">
@@ -576,9 +605,9 @@ export default function Home() {
             )}
             {status === 'ready' && (
               <>
-                <button onClick={() => startScraping(filteredUrls)}
+                <button onClick={() => startScraping(parsedUrls)}
                   className="px-4 py-2 text-sm font-medium text-white bg-emerald-600 hover:bg-emerald-700 rounded-md">
-                  Start Scraping ({filteredUrls.length} URLs)
+                  Start Scraping ({parsedUrls.length} URLs)
                 </button>
                 <button onClick={parseSitemap}
                   className="px-4 py-2 text-sm font-medium text-gray-700 bg-white border border-gray-300 hover:bg-gray-50 rounded-md">
@@ -630,17 +659,24 @@ export default function Home() {
               </div>
             )}
 
-            {status === 'ready' && filteredUrls.length > 0 && (
+            {status === 'ready' && parsedUrls.length > 0 && (
               <div className="mt-3">
                 <button onClick={() => setShowUrls((v) => !v)}
                   className="text-xs text-blue-600 hover:text-blue-700 font-medium">
-                  {showUrls ? 'Hide' : 'Preview'} {filteredUrls.length} URLs
+                  {showUrls ? 'Hide URLs' : `View / Edit ${parsedUrls.length} URLs`}
                 </button>
                 {showUrls && (
-                  <div className="mt-2 max-h-48 overflow-y-auto bg-gray-50 rounded-md p-2 space-y-0.5">
-                    {filteredUrls.map((u, i) => (
-                      <p key={i} className="text-xs text-gray-500 truncate">{u}</p>
-                    ))}
+                  <div className="mt-2">
+                    <p className="text-xs text-gray-400 mb-1">
+                      Edit the list below (one URL per line):
+                    </p>
+                    <textarea
+                      value={urlsText}
+                      onChange={(e) => setUrlsText(e.target.value)}
+                      rows={10}
+                      className="w-full p-2.5 text-xs font-mono border border-gray-200 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500 bg-gray-50 text-gray-700"
+                      placeholder="Enter URLs to scrape, one per line..."
+                    />
                   </div>
                 )}
               </div>
@@ -654,19 +690,53 @@ export default function Home() {
         {/* ── Results table ────────────────────────────────────────────────── */}
         {results.length > 0 && (
           <div className="bg-white border border-gray-200 rounded-lg p-5">
-            <div className="flex items-center justify-between mb-4">
-              <h2 className="text-sm font-medium text-gray-700">
-                Product Data
-                <span className="ml-2 bg-blue-100 text-blue-700 text-xs font-medium px-2 py-0.5 rounded-full">
-                  {results.length}
-                </span>
-              </h2>
+            <div className="flex flex-wrap items-center justify-between gap-3 mb-4 pb-3 border-b border-gray-100">
+              <div className="flex items-center gap-4 flex-wrap">
+                <h2 className="text-sm font-medium text-gray-700">
+                  Product Data
+                  <span className="ml-2 bg-blue-100 text-blue-700 text-xs font-medium px-2 py-0.5 rounded-full">
+                    {filteredProducts.length} {filteredProducts.length !== results.length && `of ${results.length}`}
+                  </span>
+                </h2>
+
+                <div className="flex items-center gap-3 flex-wrap">
+                  <div className="flex items-center gap-1.5">
+                    <span className="text-xs text-gray-400">Species:</span>
+                    <select
+                      value={filterSpecies}
+                      onChange={(e) => setFilterSpecies(e.target.value as any)}
+                      className="px-2 py-1 text-xs border border-gray-300 rounded-md focus:outline-none focus:ring-1 focus:ring-blue-500 bg-white text-gray-700 font-medium"
+                    >
+                      <option value="all">All</option>
+                      <option value="dog">Dog</option>
+                      <option value="cat">Cat</option>
+                      <option value="unknown">Unknown</option>
+                    </select>
+                  </div>
+
+                  <div className="flex items-center gap-1.5">
+                    <span className="text-xs text-gray-400">Food Type:</span>
+                    <select
+                      value={filterFoodType}
+                      onChange={(e) => setFilterFoodType(e.target.value as any)}
+                      className="px-2 py-1 text-xs border border-gray-300 rounded-md focus:outline-none focus:ring-1 focus:ring-blue-500 bg-white text-gray-700 font-medium"
+                    >
+                      <option value="all">All</option>
+                      <option value="dry food">Dry Food</option>
+                      <option value="wet food">Wet Food</option>
+                      <option value="mixed">Mixed</option>
+                      <option value="unknown">Unknown</option>
+                    </select>
+                  </div>
+                </div>
+              </div>
+
               <button onClick={exportCSV}
-                className="text-xs text-gray-600 border border-gray-300 hover:border-gray-400 px-3 py-1.5 rounded-md">
+                className="text-xs text-gray-600 border border-gray-300 hover:border-gray-400 px-3 py-1.5 rounded-md font-medium">
                 Export CSV
               </button>
             </div>
-            <ResultsTable products={results} visibleCols={visibleCols} />
+            <ResultsTable products={filteredProducts} visibleCols={visibleCols} />
           </div>
         )}
 

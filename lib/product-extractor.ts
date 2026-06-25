@@ -79,11 +79,71 @@ export function detectSpecies(text: string): 'dog' | 'cat' | 'unknown' {
 
 export function detectFoodType(text: string): 'dry food' | 'wet food' | 'mixed' | 'unknown' {
   const lower = text.toLowerCase();
-  const dry = /\b(dry\s+food|kibble|biscuit|dried\s+food|crunch|pellet|complete\s+dry)\b/.test(lower);
-  const wet = /\b(wet\s+food|pou?ch|pouches|can\b|canned|tin\b|tinned|jelly|gravy|mousse|p[aâ]t[eé]|terrine|loaf|broth|stew|soup|in\s+jelly|in\s+gravy)\b/.test(lower);
+  const dry = /\b(dry([\s-]+(dog|cat))?[\s-]+food|kibbles?|biscuits?|dried[\s-]+food|crunch(y)?|pellets?|complete[\s-]+dry)\b/.test(lower);
+  const wet = /\b(wet([\s-]+(dog|cat))?[\s-]+food|pou?ches?|cans?\b|canned|tins?\b|tinned|jelly|gravy|mousse|p[aâ]t[eé]|terrine|loaf|broth|stew|soup|in[\s-]+jelly|in[\s-]+gravy)\b/.test(lower);
   if (dry && wet) return 'mixed';
   if (dry) return 'dry food';
   if (wet) return 'wet food';
+  return 'unknown';
+}
+
+export function classifySpecies(
+  productName: string | null,
+  url: string,
+  jsonLdDesc: string | null,
+  metaDesc: string | null,
+  markdown: string
+): 'dog' | 'cat' | 'unknown' {
+  if (productName) {
+    const s = detectSpecies(productName);
+    if (s !== 'unknown') return s;
+  }
+  if (url) {
+    const s = detectSpecies(url);
+    if (s !== 'unknown') return s;
+  }
+  if (jsonLdDesc) {
+    const s = detectSpecies(jsonLdDesc);
+    if (s !== 'unknown') return s;
+  }
+  if (metaDesc) {
+    const s = detectSpecies(metaDesc);
+    if (s !== 'unknown') return s;
+  }
+  if (markdown) {
+    const s = detectSpecies(markdown.slice(0, 3000));
+    if (s !== 'unknown') return s;
+  }
+  return 'unknown';
+}
+
+export function classifyFoodType(
+  productName: string | null,
+  url: string,
+  jsonLdDesc: string | null,
+  metaDesc: string | null,
+  markdown: string
+): 'dry food' | 'wet food' | 'mixed' | 'unknown' {
+  if (productName) {
+    const f = detectFoodType(productName);
+    if (f !== 'unknown') return f;
+  }
+  if (url) {
+    const f = detectFoodType(url);
+    if (f !== 'unknown') return f;
+  }
+  if (jsonLdDesc) {
+    const f = detectFoodType(jsonLdDesc);
+    if (f !== 'unknown') return f;
+  }
+  if (metaDesc) {
+    const f = detectFoodType(metaDesc);
+    if (f !== 'unknown') return f;
+  }
+  if (markdown) {
+    const f = detectFoodType(markdown.slice(0, 3000));
+    if (f !== 'unknown') return f;
+  }
   return 'unknown';
 }
 
@@ -177,19 +237,20 @@ export function extractProducts(
     (meta.ogSiteName as string) ||
     null;
 
-  // Analysis text for classification
-  const analysisText = [
+  const species = classifySpecies(
     productName,
-    product?.description as string,
-    meta.description as string,
     url,
-    markdown.slice(0, 3000),
-  ]
-    .filter(Boolean)
-    .join(' ');
-
-  const species = detectSpecies(analysisText);
-  const foodType = detectFoodType(analysisText);
+    (product?.description as string) || null,
+    (meta.description as string) || null,
+    markdown
+  );
+  const foodType = classifyFoodType(
+    productName,
+    url,
+    (product?.description as string) || null,
+    (meta.description as string) || null,
+    markdown
+  );
 
   // Offers / variants
   const offers = parseOffers(product?.offers);
